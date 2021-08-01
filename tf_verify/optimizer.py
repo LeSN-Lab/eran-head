@@ -471,11 +471,12 @@ class Optimizer:
                     bias, _, output_name, b_output_shape = self.resources[i + 1][domain]
                     i += 2
                 else:
-                    #self.resources[i][domain].append(refine)
-                    matrix, m_input_names , output_name , b_output_shape  = self.resources[i][domain]
-                    
-                    bias_length = reduce((lambda x, y: x*y), b_output_shape)
+                    # self.resources[i][domain].append(refine)
+                    matrix, input_names, output_name, b_output_shape = self.resources[i][domain]
+
+                    bias_length = reduce((lambda x, y: x * y), b_output_shape)
                     bias = np.zeros(bias_length)
+
                     i += 1
                 # print("type ", type(matrix), type(bias), matrix.dtype, bias.dtype)
                 network.add_linear(matrix.astype("float64"), parent=layer_gpu_output_dict[input_names[0]])
@@ -574,6 +575,30 @@ class Optimizer:
                 nn.numlayer += 1
                 relu_layers.append(num_gpu_layers)
                 num_gpu_layers += 1
+                i += 1
+
+            elif self.operations[i] == "Tanh":
+                if (i + 1) < nbr_op:
+                    raise NotImplementedError
+                else:
+                    print("Final Tanh layer omitted")
+                    omitted_layers.append(self.operations[i])
+                i += 1
+
+            elif self.operations[i] == "Sigmoid":
+                if (i + 1) < nbr_op:
+                    raise NotImplementedError
+                else:
+                    print("Final Sigmoid layer omitted")
+                    omitted_layers.append(self.operations[i])
+                i += 1
+
+            elif self.operations[i] == "Resadd":
+                input_names, output_name, output_shape = self.resources[i][domain]
+                network.add_parsum(layer_gpu_output_dict[input_names[0]], layer_gpu_output_dict[input_names[1]])
+                nn.layertypes.append('Resadd')
+                num_gpu_layers += 1
+                nn.numlayer += 1
                 i += 1
             else:
                 assert 0, "the optimizer for" + "gpupoly" + " doesn't know of the operation type " + self.operations[i]

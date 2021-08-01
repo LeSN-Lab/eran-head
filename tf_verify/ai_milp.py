@@ -208,18 +208,15 @@ def handle_maxpool(model, var_list, layerno, src_counter, pool_size, input_shape
 
     start_idx = len(var_list)
     num_neurons = np.prod(input_shape)#input_shape[0]*input_shape[1]*input_shape[2]
-    num_neurons_out = np.prod(output_shape)
-    pool_count = np.prod(pool_size)
-    binary_counter = start
-    maxpool_counter = start
+    binary_counter = start_idx
+    maxpool_counter = start_idx
 
     if(use_milp==1):
-        maxpool_counter = start + num_neurons_out * pool_count
-        for j in range(num_neurons_out):
-            for i in range(pool_count):
-                var_name = "x" + str(maxpool_counter+j) + "_" + str(i)
-                var = model.addVar(vtype=GRB.BINARY, name=var_name)
-                var_list.append(var)
+        maxpool_counter = start_idx + num_neurons
+        for j in range(num_neurons):
+            var_name = "x" + str(start_idx + j)
+            var = model.addVar(vtype=GRB.BINARY, name=var_name)
+            var_list.append(var)
 
     o1 = output_shape[1]
     o2 = output_shape[2]
@@ -231,7 +228,6 @@ def handle_maxpool(model, var_list, layerno, src_counter, pool_size, input_shape
     #print("strides ", strides, pad_top, pad_left)
     for j in range(output_size):
         var_name = "x" + str(maxpool_counter+j)
-        var = model.addVar(vtype=GRB.CONTINUOUS, lb=lbi[j], ub=ubi[j],  name=var_name)
         var = model.addVar(vtype=GRB.CONTINUOUS, lb=lbi[j], ub=ubi[j],  name=var_name)
         var_list.append(var)
 
@@ -248,21 +244,11 @@ def handle_maxpool(model, var_list, layerno, src_counter, pool_size, input_shape
             out_x = int(out_pos / o12)
             out_y = int((out_pos-out_x*o12) / output_shape[3])
             out_z = int(out_pos-out_x*o12 - out_y*output_shape[3])
-        if is_nchw:
-            out_z = int(out_pos / o12)
-            out_x = int((out_pos - out_z * o12) / output_shape[3])
-            out_y = int(out_pos - out_z * o12 - out_x * output_shape[3])
-        else:
-            out_x = int(out_pos / o12)
-            out_y = int((out_pos-out_x*o12) / output_shape[3])
-            out_z = int(out_pos-out_x*o12 - out_y*output_shape[3])
         inp_z = out_z
                
         max_u = float("-inf")
         max_l = float("-inf")
         sum_l = 0.0
-        max_l_var = 0
-        max_u_var = 0
         max_l_var = 0
         max_u_var = 0
         pool_map = []
@@ -675,7 +661,6 @@ def create_model(nn, LB_N0, UB_N0, nlb, nub, relu_groups, numlayer, use_milp, is
         for i in range(num_pixels):
             var_name = "x" + str(i)
             var = model.addVar(vtype=GRB.CONTINUOUS, lb=LB_N0[i], ub=UB_N0[i], name=var_name)
-            var = model.addVar(vtype=GRB.CONTINUOUS, lb=LB_N0[i], ub=UB_N0[i], name=var_name)
             var_list.append(var)
 
     start_counter = [counter]
@@ -747,7 +732,6 @@ def create_model(nn, LB_N0, UB_N0, nlb, nub, relu_groups, numlayer, use_milp, is
             conv_counter += 1
 
         elif(nn.layertypes[i] in ['Maxpool',"MaxPool"]):
-        
             partial_milp_neurons = (first_milp_layer <= i) * (max_milp_neurons if max_milp_neurons >= 0 else len(nlb[i]))
             pool_size = nn.pool_size[pool_counter]
             input_shape = nn.input_shape[conv_counter + pool_counter + pad_counter]
@@ -757,7 +741,7 @@ def create_model(nn, LB_N0, UB_N0, nlb, nub, relu_groups, numlayer, use_milp, is
             index = nn.predecessors[i+1][0]
             counter = start_counter[index]
             counter = handle_maxpool(model, var_list, i, counter, pool_size, input_shape, strides, out_shape, padding[0],
-                                     padding[1], nlb[i], nub[i], nlb[i-1], nub[i-1], use_milp, is_nchw=is_nchw)
+                                     padding[1], nlb[i], nub[i], nlb[i-1], nub[i-1], use_milp, is_nchw=is_nchw, feas_act=feas_act_i)
             start_counter.append(counter)
             pool_counter += 1
 
