@@ -495,13 +495,8 @@ else:
         operations, resources = translator.translate()
         optimizer = Optimizer(operations, resources)
         nn = layers()
-<<<<<<< HEAD
-        network, relu_layers, num_gpu_layers, _, nn = optimizer.get_gpupoly(nn)
-    else:
-=======
         network, relu_layers, num_gpu_layers, omitted_layers, nn = optimizer.get_gpupoly(nn)
     else:    
->>>>>>> 08575bef... ResNet for GPUPoly
         eran = ERAN(model, is_onnx=is_onnx)
 
 if not is_trained_with_pytorch:
