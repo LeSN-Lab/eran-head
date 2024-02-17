@@ -331,21 +331,21 @@ def handle_maxpool(model, var_list, layerno, src_counter, pool_size, input_shape
                 expr = var_list[dst_index] - var_list[src_var]
                 model.addConstr(expr, GRB.GREATER_EQUAL, 0)
 
-                    # y <= x + (1-a)*(u_{rest}-l)
-                    max_u_rest = float("-inf")
-                    for j in pool_map:
-                        if j == src_index:
-                            continue
-                        if(ubi_prev[j]>max_u_rest):
-                            max_u_rest = ubi_prev[j]
+                # y <= x + (1-a)*(u_{rest}-l)
+                max_u_rest = float("-inf")
+                for j in pool_map:
+                    if j == src_index:
+                        continue
+                    if(ubi_prev[j]>max_u_rest):
+                        max_u_rest = ubi_prev[j]
 
-                    cst = max_u_rest-lbi_prev[src_index]
-                    expr = var_list[dst_index] - var_list[src_var] + cst * (var_list[binary_var] - 1)
-                    model.addConstr(expr, GRB.LESS_EQUAL, 0, name=f"max_pool_{dst_index}_{i}")
+                cst = max_u_rest-lbi_prev[src_index]
+                expr = var_list[dst_index] - var_list[src_var] + cst * (var_list[binary_var] - 1)
+                model.addConstr(expr, GRB.LESS_EQUAL, 0, name=f"max_pool_{dst_index}_{i}")
 
-                    # indicator constraints
-                    model.addGenConstrIndicator(var_list[binary_var], True, var_list[dst_index]-var_list[src_var], GRB.EQUAL, 0.0)
-                    binary_expr += var_list[binary_var]
+                # indicator constraints
+                model.addGenConstrIndicator(var_list[binary_var], True, var_list[dst_index]-var_list[src_var], GRB.EQUAL, 0.0)
+                binary_expr += var_list[binary_var]
 
                 # only one indicator can be true
                 model.addConstr(binary_expr, GRB.EQUAL, 1, name=f"binary_max_pool_{dst_index}")
@@ -747,7 +747,7 @@ def create_model(nn, LB_N0, UB_N0, nlb, nub, relu_groups, numlayer, use_milp, is
             conv_counter += 1
 
         elif(nn.layertypes[i] in ['Maxpool',"MaxPool"]):
-        elif(nn.layertypes[i] in ['Maxpool',"MaxPool"]):
+        
             partial_milp_neurons = (first_milp_layer <= i) * (max_milp_neurons if max_milp_neurons >= 0 else len(nlb[i]))
             pool_size = nn.pool_size[pool_counter]
             input_shape = nn.input_shape[conv_counter + pool_counter + pad_counter]
