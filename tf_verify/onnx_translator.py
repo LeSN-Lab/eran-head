@@ -14,7 +14,6 @@
   limitations under the License.
 """
 
-
 import numpy as np
 import onnx
 from onnx import numpy_helper
@@ -34,6 +33,8 @@ def onnxshape_to_intlist(onnxshape):
 	output : list
 	    list of ints corresponding to onnxshape
 	"""
+	#NCHW(배치 크기, 채널, 높이, 너비)
+	#NHWC(배치 크기, 높이, 너비, 채널)
 	result = list(map(lambda j: 1 if j.dim_value is None else int(j.dim_value), onnxshape.dim))
 
 	# No shape means a single value
@@ -90,8 +91,6 @@ def nchw_to_nhwc(array):
 	return array
 
 
-
-
 def reshape_nhwc(shape_in, shape_out):
 	#print(shape_in, shape_out)
 	ndim_in = len(shape_in)
@@ -126,6 +125,7 @@ def prepare_model(model):
 	input_node_map = {}
 
 	for initial in model.graph.initializer:
+		# print(initial)
 		const = nchw_to_nhwc(numpy_helper.to_array(initial)).copy()
 		constants_map[initial.name] = const
 		shape_map[initial.name] = const.shape
@@ -138,7 +138,8 @@ def prepare_model(model):
 			shape_map[node_input.name] = onnxshape_to_intlist(node_input.type.tensor_type.shape)
 			input_node_map[node_input.name] = node_input
 			
-	for node in model.graph.node:
+	for nodeIndex, node in enumerate(model.graph.node):
+
 		#print(node.op_type)
 		output_node_map[node.output[0]] = node
 		for node_input in node.input:
@@ -263,12 +264,13 @@ def prepare_model(model):
 				constants_map[node.output[0]] = shape_map[node.input[0]]
 				shape_map[node.output[0]] = [len(shape_map[node.input[0]])]
 
-		#elif node.op_type == "Cast":
-			#shape_map[node.output[0]] = shape_map[node.input[0]]
-			#print("CASTING ", node.input[0], shape_map[node.input[0]], shape_map[node.output[0]])
+		elif node.op_type == "Cast":
+			shape_map[node.output[0]] = shape_map[node.input[0]]
+			print("CASTING ", node.input[0], shape_map[node.input[0]], shape_map[node.output[0]])
 
 		elif node.op_type == "Reshape":
 			#print("RESHAPE ", node.input, node.output)
+			#constant_map: 모델 노드의 값을 저장한다.
 			if node.input[1] in constants_map:
 				total = 1
 				replace_index = -1
@@ -279,6 +281,7 @@ def prepare_model(model):
 						total *= constants_map[node.input[1]][index]
 
 				if replace_index != -1:
+					#shape_map:해당 노드의 출력 텐서의 shape를 저장한다.
 					constants_map[node.input[1]][replace_index] = np.prod(shape_map[node.input[0]]) / total
 
 				if len(constants_map[node.input[1]]) == 4:
@@ -348,6 +351,7 @@ def prepare_model(model):
 				constants_map[node.output[0]] = result
 		elif node.op_type == "Pad":
 			input_shape = np.array(shape_map[node.input[0]])
+			
 			for attribute in node.attribute:
 				if attribute.name == "pads":
 					padding = np.array(attribute.ints)
@@ -361,6 +365,11 @@ def prepare_model(model):
 			for i in range(2,input_dim): # only pad spatial dimensions
 				output_shape[i-1] += padding[i]+padding[i+input_dim]
 			shape_map[node.output[0]] = list(output_shape)
+		# elif node.op_type == "Identity":
+		# 	shape_map[node.output[0]] = shape_map[node.input[0]]
+		# 	if node.input[0] in constants_map:
+		# 		constants_map[node.output[0]] = constants_map[node.input[0]]
+		
 		else:
 			assert 0, f"Operations of type {node.op_type} are not yet supported."
 
@@ -387,21 +396,33 @@ class ONNXTranslator:
 		---------
 		model : onnx.ModelProto
 		"""
-		if issubclass(model.__class__, onnx.ModelProto):
+		if issubclass(model.__class__, onnx.ModelProto):#형식이 onnx인지
 			onnx.checker.check_model(model)
 			self.model = model
 			self.nodes = self.model.graph.node
+			# print('self.nodes', self.nodes)
 			self.is_gpupoly = is_gpupoly
 			self.shape_map, self.constants_map, self.output_node_map, self.input_node_map, self.placeholdernames = prepare_model(model)
 		else:
 			assert 0, 'not onnx model'
 
-	def find_input(self):
+	def find_input(self):#입력 노드 딕셔너리 생성
 		inputs_dir = {x.name: x for x in self.model.graph.input}
-		all_inputs = [x for y in self.nodes for x in y.input]
+		all_inputs = [x for y in self.nodes for x in y.input]#모델의 모든 입력 추출
+		# print('inputs_dir', inputs_dir)
+		# print('all_input', all_inputs)
+		# print('all_inputs[0]:', all_inputs[0])
+		
+		#노드의 출력(x)가 이전 노드의 입력으로 사용되는 경우 해당 입력을 all_inputs 리스트에서 제거
 		[all_inputs.remove(x) for y in self.nodes for x in y.output if x in all_inputs]
+		#다른 어떤 노드의 출력으로 사용되지 않는 모델의 초기 입력 노드들만 남김
 		[all_inputs.remove(x.name) for x in self.model.graph.initializer if x.name in all_inputs]
-
+		# for node in self.nodes:
+		# 	if node.op_type == "Identity":
+		# 		identity_input = node.input[0]
+		# 		if identity_input in all_inputs and identity_input not in inputs_dir:
+		# 			inputs_dir[identity_input] = node
+		#all_inputs[0]이 inputs_dir에 없으면 종료
 		assert all_inputs[0] in inputs_dir
 
 		return inputs_dir[all_inputs[0]]
@@ -436,7 +457,9 @@ class ONNXTranslator:
 		"""
 		operation_types     = ["Placeholder"]
 		# placeholder = self.model.graph.input[0]
+
 		placeholder = self.find_input()
+		# print('placeholder', placeholder)
 		in_out_placeholder = ([], placeholder.name, self.clean_shape(onnxshape_to_intlist(placeholder.type.tensor_type.shape)))
 		operation_resources = [{'deepzono':in_out_placeholder, 'deeppoly':in_out_placeholder}]
 		reshape_map = {}
@@ -632,7 +655,11 @@ class ONNXTranslator:
 				repeats = nchw_to_nhwc_shape(self.constants_map[node.input[1]])
 				repeat_factor = repeats[repeats != 1].item()
 				operation_resources.append({'deeppoly': (repeat_factor,) + in_out_info})
-
+			# elif node.op_type == "Identity":
+			# 	operation_types.append("Identity")
+			# 	in_out_info = (node.input, node.output, shape_map[node.output[0]])
+			# 	operation_resources.append({'deepzono': in_out_info, 'deeppoly': in_out_info})
+    
 			else:
 				assert 0, "Operations of type " + node.op_type + " are not yet supported."
 
@@ -645,6 +672,9 @@ class ONNXTranslator:
 		input_name = node.input[0]
 		#print("ignore ", len(node.input), reshape_map)
 		output_name = node.output[0]
+		# 만약 현재 노드의 입력이 reshape_map에 존재한다면, 
+    	# 현재 노드의 출력을 이전 노드의 입력과 동일하게 매핑합니다.
+    	# 즉, 현재 노드를 건너뛰고 이전 노드의 입력을 현재 노드의 출력으로 직접 연결합니다.
 		if input_name in reshape_map:
 			reshape_map[output_name] = reshape_map[input_name]
 		else:

@@ -1,0 +1,6 @@
+[submodule "ELINA"]
+	path = ELINA
+	url = https://github.com/eth-sri/ELINA.git
+[submodule "deepg"]
+	path = deepg
+	url = https://github.com/eth-sri/deepg.git

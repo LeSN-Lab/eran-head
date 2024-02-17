@@ -572,6 +572,22 @@ class Optimizer:
                 relu_layers.append(num_gpu_layers)
                 num_gpu_layers +=1
                 i += 1
+            elif self.operations[i] == "Resadd":
+                # Assuming ResAdd resources are stored as follows:
+                # input_names for the layers to be added, output_name for the result, and possibly output_shape
+                resadd_input_names, resadd_output_name, _ = self.resources[i][domain]
+                
+                # Get layer indices or identifiers for inputs
+                input_layers = [layer_outputs[name] for name in resadd_input_names]
+                
+                # Perform the ResAdd operation. This is a conceptual step; actual implementation depends on GPUPoly's API.
+                # For example, if GPUPoly has a method `add_layer_outputs`, we could use it as follows:
+                # network.add_layer_outputs(input_layers, resadd_output_name)
+                # Note: The actual method to perform ResAdd will depend on GPUPoly's capabilities.
+                
+                layer_outputs[resadd_output_name] = num_gpu_layers  # Update layer_outputs with the ResAdd layer
+                num_gpu_layers += 1  # Increment layer counter if necessary
+                i += 1
             else:
                 assert 0, "the optimizer for" + "gpupoly" + " doesn't know of the operation type " + self.operations[i]
         return network, relu_layers, num_gpu_layers
