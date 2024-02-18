@@ -179,7 +179,74 @@ def prepare_model(model):
 				elif node.op_type == "Div":
 					result = np.divide(constants_map[node.input[0]], constants_map[node.input[1]])
 				constants_map[node.output[0]] = result
-		elif node.op_type in ["Conv", "MaxPool", "AveragePool", "GlobalAveragePool"]:
+		elif node.op_type in ["GlobalAveragePool"]:
+			output_shape = []
+			input_shape = shape_map[node.input[0]]
+
+			require_kernel_shape = True
+			if not require_kernel_shape:
+				filter_shape = shape_map[node.input[1]]
+				kernel_shape = filter_shape[1:-1]
+
+			strides = input_shape[1:3]
+			padding = [0, 0, 0, 0]
+			auto_pad = 'NOTSET'
+			dilations = [1, 1]
+			group = 1
+			ceil_mode = 0
+			kernel_shape = input_shape[1:3]
+
+
+			for attribute in node.attribute:
+				if attribute.name == 'strides':
+					strides = attribute.ints
+				elif attribute.name == 'pads':
+					padding = attribute.ints
+				elif attribute.name == 'auto_pad':
+					auto_pad = attribute.s
+				elif attribute.name == 'kernel_shape':
+					kernel_shape = attribute.ints
+				elif attribute.name == 'dilations':
+					dilations = attribute.ints
+				elif attribute.name == 'group':
+					group = attribute.i
+				elif attribute.name == 'ceil_mode':
+					ceil_mode = attribute.i
+
+			# node.attribute = {
+			# 	strides : input_shape[1:3],
+			# 	padding : [0, 0, 0, 0],
+			# 	auto_pad : 'NOTSET',
+			# 	dilations : [1, 1],
+			# 	group : 1,
+			# 	ceil_mode : 0,
+			# 	kernel_shape : tuple(input_shape[1:3])
+			# }
+
+			effective_kernel_shape = [(kernel_shape[i] - 1) * dilations[i] + 1 for i in range(len(kernel_shape))]
+
+			output_shape.append(input_shape[0])
+
+			for i in range(len(kernel_shape)):
+				effective_input_size = input_shape[1 + i]
+				effective_input_size += padding[i]
+				effective_input_size += padding[i + len(kernel_shape)]
+				if ceil_mode == 1:
+					strided_kernel_positions = int(
+						np.ceil((effective_input_size - effective_kernel_shape[i]) / float(strides[i])))
+				else:
+					strided_kernel_positions = int(
+						np.floor((effective_input_size - effective_kernel_shape[i]) / strides[i]))
+				output_shape.append(1 + strided_kernel_positions)
+
+			if require_kernel_shape:
+				output_shape.append(input_shape[3])
+			else:
+				output_shape.append(filter_shape[0])
+
+			shape_map[node.output[0]] = output_shape
+
+		elif node.op_type in ["Conv", "MaxPool", "AveragePool"]:
 			output_shape = []
 			input_shape = shape_map[node.input[0]]
 
@@ -930,7 +997,7 @@ class ONNXTranslator:
 		    has 4 entries - (list, numpy.ndarray, numpy.ndarray, numpy.ndarray, int, int, str)
 		"""
 		image       = node.input[0]
-		
+
 		image_shape = self.get_shape(image)[1:]
 
 		padding = 'NOTSET'
@@ -939,6 +1006,15 @@ class ONNXTranslator:
 		pads = [0, 0, 0, 0]
 		dilations = None
 
+		if node.op_type in ["GlobalAveragePool"]:
+
+			strides = image_shape[0:2]
+			padding = [0, 0, 0, 0]
+			auto_pad = 'NOTSET'
+			dilations = [1, 1]
+			group = 1
+			ceil_mode = 0
+			kernel_shape = image_shape[0:2]
 		for attribute in node.attribute:
 			if attribute.name == 'kernel_shape':
 				kernel_shape = attribute.ints
