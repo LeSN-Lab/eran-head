@@ -179,11 +179,11 @@ def prepare_model(model):
 				elif node.op_type == "Div":
 					result = np.divide(constants_map[node.input[0]], constants_map[node.input[1]])
 				constants_map[node.output[0]] = result
-		elif node.op_type in ["Conv", "MaxPool", "AveragePool"]:
+		elif node.op_type in ["Conv", "MaxPool", "AveragePool", "GlobalAveragePool"]:
 			output_shape = []
 			input_shape = shape_map[node.input[0]]
 
-			require_kernel_shape = node.op_type in ["MaxPool", "AveragePool"]
+			require_kernel_shape = node.op_type in ["MaxPool", "AveragePool", "GlobalAveragePool"]
 			if not require_kernel_shape:
 				filter_shape = shape_map[node.input[1]]
 				kernel_shape = filter_shape[1:-1]
@@ -230,6 +230,9 @@ def prepare_model(model):
 				output_shape.append(filter_shape[0])
 
 			shape_map[node.output[0]] = output_shape
+
+
+
 		elif node.op_type in ["Relu", "Sigmoid", "Tanh", "Softmax", "BatchNormalization", "LeakyRelu"]:
 			shape_map[node.output[0]] = shape_map[node.input[0]]
 
@@ -365,10 +368,7 @@ def prepare_model(model):
 			for i in range(2,input_dim): # only pad spatial dimensions
 				output_shape[i-1] += padding[i]+padding[i+input_dim]
 			shape_map[node.output[0]] = list(output_shape)
-		# elif node.op_type == "Identity":
-		# 	shape_map[node.output[0]] = shape_map[node.input[0]]
-		# 	if node.input[0] in constants_map:
-		# 		constants_map[node.output[0]] = constants_map[node.input[0]]
+
 		
 		else:
 			assert 0, f"Operations of type {node.op_type} are not yet supported."
@@ -581,7 +581,7 @@ class ONNXTranslator:
 					self.ignore_node(node, operation_types, reshape_map)
 				else:
 					operation_resources.append({'deepzono':deepzono_res, 'deeppoly':deeppoly_res})
-			elif node.op_type == "MaxPool" or node.op_type == "AveragePool":
+			elif node.op_type == "MaxPool" or node.op_type == "AveragePool" or node.op_type == "GlobalAveragePool":
 				image_shape, kernel_shape, strides, padding, dilations, pad_top, pad_left, pad_bottom, pad_right, ceil_mode, storage_order = self.pool_resources(node)
 				if node.name in padding_merger_dict:
 					image_shape, in_out_info, pad_top, pad_left, pad_bottom, pad_right = self.merge_padding(node, padding_merger_dict, in_out_info, pad_top, pad_left, pad_bottom, pad_right)

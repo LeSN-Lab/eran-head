@@ -634,9 +634,38 @@ class Optimizer:
 
                 c_dim = image_shape[-1]
                 kernel_shape = (1, 1)
+                filters = np.zeros((*kernel_shape, c_dim, c_dim), dtype=np.float64)
+                for j in range(c_dim):
+                    filters[:,:, j, j] = 1.
+                bias_length = reduce((lambda x, y: x * y), b_output_shape)
+                bias = np.zeros(bias_length)
+                i += 1
+                nn.numfilters.append(filters.shape[3])
+                nn.filter_size.append([filters.shape[0], filters.shape[1]])
+                nn.input_shape.append([image_shape[2], image_shape[0], image_shape[1]])
+                nn.strides.append([strides[0], strides[1]])
+                nn.padding.append([pad_top, pad_left, pad_bottom, pad_right])
+                nn.out_shapes.append([b_output_shape[0], b_output_shape[3], b_output_shape[1], b_output_shape[2]])
+                nn.filters.append(np.transpose(filters, [3, 2, 0, 1]))
+                nn.biases.append(bias)
+                nn.layertypes.append('Conv')
+                # print("filter shape ", nn.out_shapes[-1])
+                network.add_conv_2d(image_shape[0], image_shape[1], filters.astype("float64"), strides[0],
+                                    [pad_top, pad_left, pad_bottom, pad_right],
+                                    parent=layer_gpu_output_dict[input_names[0]])
+                bias = bias.repeat(b_output_shape[1] * b_output_shape[2])
+                network.add_bias(bias)
+                num_gpu_layers += 2
+                nn.numlayer += 1
+            elif self.operations[i] == "GlobalAveragePool":
+                image_shape, kernel_shape, strides, pad_top, pad_left, pad_bottom, pad_right, input_names, output_name, b_output_shape = self.resources[i][domain]
+                if not (pad_top == 0 and pad_left == 0 and pad_bottom == 0 and pad_right == 0):
+                    assert 0, "the optimizer for" + "gpupoly" + " doesn't know of the operation type " + self.operations[i]
+
+                c_dim = image_shape[-1]
                 filters = np.zeros((*kernel_shape, c_dim, c_dim), dtype=np.float32)
                 for j in range(c_dim):
-                    filters[:,:, j, j] = 1
+                    filters[:,:, j, j] = 1./np.prod(kernel_shape)
                 bias_length = reduce((lambda x, y: x * y), b_output_shape)
                 bias = np.zeros(bias_length)
                 i += 1
