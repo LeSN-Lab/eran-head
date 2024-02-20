@@ -436,7 +436,7 @@ def prepare_model(model):
 				output_shape[i-1] += padding[i]+padding[i+input_dim]
 			shape_map[node.output[0]] = list(output_shape)
 
-		
+
 		else:
 			assert 0, f"Operations of type {node.op_type} are not yet supported."
 

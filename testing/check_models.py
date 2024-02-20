@@ -145,6 +145,8 @@ for dataset in datasets:
                 num_pixels = 784
             elif (dataset=='cifar10'):
                 num_pixels = 3072
+            elif(dataset=='cifar100'):
+                num_pixels = 3072
             elif(dataset=='acasxu'):
                 num_pixels = 5
             if is_onnx:
@@ -169,6 +171,9 @@ for dataset in datasets:
             tests = csv.reader(csvfile, delimiter=',')
         elif(dataset=='cifar10'):
             csvfile = open('../data/cifar10_test.csv', 'r')
+            tests = csv.reader(csvfile, delimiter=',')
+        elif(dataset=='cifar100'):
+            csvfile = open('../data/cifar100_test.csv', 'r')
             tests = csv.reader(csvfile, delimiter=',')
         else:
             specfile = '../data/acasxu/specs/acasxu_prop' + str(specnumber) +'_spec.txt'
@@ -209,6 +214,8 @@ for dataset in datasets:
                 continue
 
             if dataset == 'cifar10':
+                input = np.array(test_input, dtype=np.float32).reshape([1, 32, 32, 3])
+            elif dataset == 'cifar100':
                 input = np.array(test_input, dtype=np.float32).reshape([1, 32, 32, 3])
             elif dataset == 'mnist':
                 input = np.array(test_input, dtype=np.float32).reshape([1, 28, 28, 1])

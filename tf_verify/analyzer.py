@@ -217,7 +217,6 @@ class Analyzer:
             output_size = self.ir_list[-1].output_length
         else:
             output_size = self.ir_list[-1].output_length#reduce(lambda x,y: x*y, self.ir_list[-1].bias.shape, 1)
-        
         dominant_class = -1
         if(self.domain=='refinepoly'):
 
@@ -271,6 +270,7 @@ class Analyzer:
                 candidate_labels.append(self.label)
 
             adv_labels = []
+            print("output size is: ", output_size)
             if self.prop == -1:
                 for i in range(output_size):
                     adv_labels.append(i)

@@ -92,18 +92,34 @@ def parse_input_box(text):
     boxes = itertools.product(*intervals_list)
     return list(boxes)
 
+def printsave(*a):
+    
+    if config.logdir and config.logname:  # logdir와 logname이 설정된 경우에만 작동
+        # logdir 디렉토리 생성 (없는 경우)
+        if not os.path.exists(config.logdir):
+            os.makedirs(config.logdir)
+
+        filepath = os.path.join(config.logdir, config.logname)
+        try:
+            with open(filepath, 'a') as file:
+                print(*a)  # 표준 출력
+                print(*a, file=file)  # 파일에 기록
+        except Exception as e:
+            print("Error writing to file:", e)  # 파일 쓰기 중 발생하는 오류 출력
+    else:
+        print(*a)  # logdir 또는 logname이 설정되지 않은 경우 표준 출력만 수행
 
 def show_ascii_spec(lb, ub, n_rows, n_cols, n_channels):
-    print('==================================================================')
+    printsave('==================================================================')
     for i in range(n_rows):
-        print('  ', end='')
+        printsave('  ', end='')
         for j in range(n_cols):
-            print('#' if lb[n_cols*n_channels*i+j*n_channels] >= 0.5 else ' ', end='')
-        print('  |  ', end='')
+            printsave('#' if lb[n_cols*n_channels*i+j*n_channels] >= 0.5 else ' ', end='')
+        printsave('  |  ', end='')
         for j in range(n_cols):
-            print('#' if ub[n_cols*n_channels*i+j*n_channels] >= 0.5 else ' ', end='')
-        print('  |  ')
-    print('==================================================================')
+            printsave('#' if ub[n_cols*n_channels*i+j*n_channels] >= 0.5 else ' ', end='')
+        printsave('  |  ')
+    printsave('==================================================================')
 
 
 def normalize(image, means, stds, dataset):
@@ -116,7 +132,7 @@ def normalize(image, means, stds, dataset):
     elif dataset == 'mnist'  or dataset == 'fashion':
         for i in range(len(image)):
             image[i] = (image[i] - means[0])/stds[0]
-    elif(dataset=='cifar10'):
+    elif(dataset=='cifar10' or dataset=='cifar100'):
         count = 0
         tmp = np.zeros(3072)
         for i in range(1024):
@@ -180,7 +196,7 @@ def denormalize(image, means, stds, dataset):
     if dataset == 'mnist'  or dataset == 'fashion':
         for i in range(len(image)):
             image[i] = image[i]*stds[0] + means[0]
-    elif(dataset=='cifar10'):
+    elif(dataset=='cifar10' or dataset=='cifar100'):
         count = 0
         tmp = np.zeros(3072)
         for i in range(1024):
@@ -261,24 +277,24 @@ def acasxu_recursive(specLB, specUB, max_depth=10, depth=0):
             try:
                 verified_flag, adv_examples, _ = verify_network_with_milp(nn, specLB, specUB, nlb, nub, constraints)
             except Exception as ex:
-                print(f"{ex}Exception occured for the following inputs:")
-                print(specLB, specUB, max_depth, depth)
+                printsave(f"{ex}Exception occured for the following inputs:")
+                printsave(specLB, specUB, max_depth, depth)
                 #verified_flag, adv_examples, _ = verify_network_with_milp(nn, specLB, specUB, nlb, nub, constraints)
                 raise ex
             print_progress(depth)
             found_adex = False
             if verified_flag == False:
                 if adv_examples!=None:
-                    #print("adv image ", adv_image)
+                    #printsave("adv image ", adv_image)
                     for adv_image in adv_examples:
                         for or_list in constraints:
                             if found_adex: break
                             negated_cstr = negate_cstr_or_list(or_list)
                             hold_adex,_,nlb,nub,_,_ = eran.analyze_box(adv_image, adv_image, domain, config.timeout_lp, config.timeout_milp, config.use_default_heuristic, negated_cstr)
                             found_adex = hold_adex or found_adex
-                        #print("hold ", hold, "domain", domain)
+                        #printsave("hold ", hold, "domain", domain)
                         if found_adex:
-                            print("property violated at ", adv_image, "output_score", nlb[-1])
+                            printsave("property violated at ", adv_image, "output_score", nlb[-1])
                             failed_already.value = 0
                             break
             return verified_flag, None if not found_adex else adv_image
@@ -317,7 +333,7 @@ def get_tests(dataset, geometric):
                 csvfile = open('../data/{}_test_full.csv'.format(dataset), 'r')
             except:
                 csvfile = open('../data/{}_test.csv'.format(dataset), 'r')
-                print("Only the first 100 samples are available.")
+                printsave("Only the first 100 samples are available.")
         else:
             filename = '../data/'+ dataset+ '_test_' + config.subset + '.csv'
             csvfile = open(filename, 'r')
@@ -403,7 +419,7 @@ if config.specnumber and not config.input_box and not config.output_constraints:
 assert config.netname, 'a network has to be provided for analysis.'
 
 #if len(sys.argv) < 4 or len(sys.argv) > 5:
-#    print('usage: python3.6 netname epsilon domain dataset')
+#    printsave('usage: python3.6 netname epsilon domain dataset')
 #    exit(1)
 
 netname = config.netname
@@ -436,7 +452,7 @@ elif not config.geometric:
 dataset = config.dataset
 
 if zonotope_bool==False:
-   assert dataset in ['mnist', 'cifar10', 'acasxu', 'fashion'], "only mnist, cifar10, acasxu, and fashion datasets are supported"
+   assert dataset in ['mnist', 'cifar10','cifar100', 'acasxu', 'fashion'], "only mnist, cifar10, acasxu, and fashion datasets are supported"
 
 mean = 0
 std = 0
@@ -444,9 +460,9 @@ std = 0
 complete = (config.complete==True)
 
 if(dataset=='acasxu'):
-    print("netname ", netname, " specnumber ", config.specnumber, " domain ", domain, " dataset ", dataset, "args complete ", config.complete, " complete ",complete, " timeout_lp ",config.timeout_lp)
+    printsave("netname ", netname, " specnumber ", config.specnumber, " domain ", domain, " dataset ", dataset, "args complete ", config.complete, " complete ",complete, " timeout_lp ",config.timeout_lp)
 else:
-    print("netname ", netname, " epsilon ", epsilon, " domain ", domain, " dataset ", dataset, "args complete ", config.complete, " complete ",complete, " timeout_lp ",config.timeout_lp)
+    printsave("netname ", netname, " epsilon ", epsilon, " domain ", domain, " dataset ", dataset, "args complete ", config.complete, " complete ",complete, " timeout_lp ",config.timeout_lp)
 
 non_layer_operation_types = ['NoOp', 'Assign', 'Const', 'RestoreV2', 'SaveV2', 'PlaceholderWithDefault', 'IsVariableInitialized', 'Placeholder', 'Identity']
 
@@ -479,10 +495,11 @@ else:
         num_pixels = len(zonotope)
     elif(dataset=='mnist'):
         num_pixels = 784
-    elif (dataset=='cifar10'):
+    elif (dataset=='cifar10' or dataset=='cifar100'):
         num_pixels = 3072
     elif(dataset=='acasxu'):
         num_pixels = 5
+    
     if is_onnx:
         model, is_conv = read_onnx_net(netname)
     else:
@@ -509,6 +526,9 @@ if not is_trained_with_pytorch:
     elif dataset == "cifar10":
         means = [0.4914, 0.4822, 0.4465]
         stds = [0.2023, 0.1994, 0.2010]
+    elif dataset == "cifar100":
+        means = [0.5071, 0.4867, 0.4408]
+        stds = [0.2675, 0.2565, 0.2761]
     else:
         means = [0.5, 0.5, 0.5]
         stds = [1, 1, 1]
@@ -548,7 +568,7 @@ if dataset=='acasxu':
     use_parallel_solve = True
     failed_already = Value('i', 1)
     if config.debug:
-        print('Constraints: ', constraints)
+        printsave('Constraints: ', constraints)
     total_start = time.time()
     for box_index, box in enumerate(boxes):
         specLB = [interval[0] for interval in box]
@@ -592,10 +612,10 @@ if dataset=='acasxu':
                 step_size.append((specUB[i]-specLB[i])/num_splits[i])
             #sorted_indices = np.argsort(widths)
             #input_to_split = sorted_indices[0]
-            #print("input to split ", input_to_split)
+            #printsave("input to split ", input_to_split)
 
             #step_size = widths/num_splits
-            #print("step size", step_size,num_splits)
+            #printsave("step size", step_size,num_splits)
             start_val = np.copy(specLB)
             end_val = np.copy(specUB)
 
@@ -630,14 +650,14 @@ if dataset=='acasxu':
                                     multi_bounds.append((specLB.copy(), specUB.copy()))
                                 else:
                                     res = acasxu_recursive(specLB.copy(),specUB.copy())
-                                    #print("RES ", res, res[0]==True,type(res)==tuple)
+                                    #printsave("RES ", res, res[0]==True,type(res)==tuple)
                                     if type(res)==tuple and res[0]==False:
                                         verified_flag = False
                                         break
                                     elif res==False:
                                         verified_flag = False
                                         break
-                                    #print("verified flag", verified_flag)
+                                    #printsave("verified flag", verified_flag)
                                     # --- VERSION WITHOUT MULTIPROCESSING ---
                                     #holds, _, nlb, nub, _, x_adex = eran.analyze_box(specLB, specUB, domain, config.timeout_lp, config.timeout_milp, config.use_default_heuristic, constraints)
 
@@ -659,8 +679,8 @@ if dataset=='acasxu':
                                     #if config.debug:
                                     #   sys.stdout.write('\rsplit %i, %i, %i, %i, %i %.02f sec\n' % (i, j, k, l, m, time.time()-rec_start))
 
-            #print(time.time() - rec_start, "seconds")
-            #print("LENGTH ", len(multi_bounds))
+            #printsave(time.time() - rec_start, "seconds")
+            #printsave("LENGTH ", len(multi_bounds))
             if use_parallel_solve:
                 failed_already = Value('i', 1)
                 try:
@@ -694,28 +714,28 @@ if dataset=='acasxu':
         if found_adex:
             ver_str = "Verified unsound (with adex)"
         if e is None:
-            print("AcasXu property", config.specnumber, f"{ver_str} for Box", box_index, "out of", len(boxes))
+            printsave("AcasXu property", config.specnumber, f"{ver_str} for Box", box_index, "out of", len(boxes))
         else:
-            print("AcasXu property", config.specnumber, "Failed for Box", box_index, "out of", len(boxes), "because of an exception ", e)
+            printsave("AcasXu property", config.specnumber, "Failed for Box", box_index, "out of", len(boxes), "because of an exception ", e)
 
-        print(time.time() - rec_start, "seconds")
-    print("Total time needed:", time.time() - total_start, "seconds")
+        printsave(time.time() - rec_start, "seconds")
+    printsave("Total time needed:", time.time() - total_start, "seconds")
 
 elif zonotope_bool:
     perturbed_label, nn, nlb, nub,_,_ = eran.analyze_zonotope(zonotope, domain, config.timeout_lp, config.timeout_milp, config.use_default_heuristic)
-    print("nlb ",nlb[-1])
-    print("nub ",nub[-1])
+    printsave("nlb ",nlb[-1])
+    printsave("nub ",nub[-1])
     if(perturbed_label!=-1):
-        print("Verified")
+        printsave("Verified")
     elif(complete==True):
         constraints = get_constraints_for_dominant_label(perturbed_label, 10)
         verified_flag, adv_image, _ = verify_network_with_milp(nn, zonotope, [], nlb, nub, constraints)
         if(verified_flag==True):
-            print("Verified")
+            printsave("Verified")
         else:
-            print("Failed")
+            printsave("Failed")
     else:
-         print("Failed")
+         printsave("Failed")
 
 
 elif config.geometric:
@@ -734,7 +754,7 @@ elif config.geometric:
             set_transform_attack_for(transform_attack_container, i, config.attack, config.debug)
             attack_params = get_attack_params(transform_attack_container)
             attack_images = get_attack_images(transform_attack_container)
-            print('Test {}:'.format(i))
+            printsave('Test {}:'.format(i))
 
             image = np.float64(test[1:])
             if config.dataset == 'mnist' or config.dataset == 'fashion':
@@ -750,16 +770,16 @@ elif config.geometric:
 
             label, nn, nlb, nub,_,_ = eran.analyze_box(spec_lb, spec_ub, 'deeppoly', config.timeout_lp, config.timeout_milp,
                                                    config.use_default_heuristic)
-            print('Label: ', label)
+            printsave('Label: ', label)
 
             begtime = time.time()
             if label != int(test[0]):
-                print('Label {}, but true label is {}, skipping...'.format(label, int(test[0])))
-                print('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
+                printsave('Label {}, but true label is {}, skipping...'.format(label, int(test[0])))
+                printsave('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
                 continue
             else:
                 standard_correct += 1
-                print('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
+                printsave('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
 
             dim = n_rows * n_cols * n_channels
 
@@ -785,15 +805,15 @@ elif config.geometric:
                         attack_lb[:dim], attack_ub[:dim], 'deeppoly',
                         config.timeout_lp, config.timeout_milp, config.use_default_heuristic)
                     if predict_label != int(test[0]):
-                        print('counter-example, params: ', params, ', predicted label: ', predict_label)
+                        printsave('counter-example, params: ', params, ', predicted label: ', predict_label)
                         cex_found = True
                         break
                     else:
                         attack_pass += 1
-            print('tot attacks: ', len(attack_imgs))
+            printsave('tot attacks: ', len(attack_imgs))
 
             lines = get_transformations(transform_attack_container)
-            print('Number of lines: ', len(lines))
+            printsave('Number of lines: ', len(lines))
             assert len(lines) % k == 0
 
             spec_lb = np.zeros(config.num_params + dim)
@@ -815,7 +835,7 @@ elif config.geometric:
                     spec_lb[dim + param_idx] = values[0]
                     spec_ub[dim + param_idx] = values[1]
                     if config.debug:
-                        print('parameter %d: [%.4f, %.4f]' % (param_idx, values[0], values[1]))
+                        printsave('parameter %d: [%.4f, %.4f]' % (param_idx, values[0], values[1]))
                 elif i % k == config.num_params:
                     # read interval bounds for image pixels
                     values = line
@@ -868,9 +888,9 @@ elif config.geometric:
                                 ok_attack = False
                         if ok_attack:
                             checked[attack_idx] = True
-                            # print('checked ', attack_idx)
+                            # printsave('checked ', attack_idx)
                     if config.debug:
-                        print('Running the analysis...')
+                        printsave('Running the analysis...')
 
                     t_begin = time.time()
                     perturbed_label_poly, _, _, _, _, _ = eran.analyze_box(
@@ -884,7 +904,7 @@ elif config.geometric:
                         config.timeout_lp, config.timeout_milp, config.use_default_heuristic)
                     t_end = time.time()
 
-                    print('DeepG: ', perturbed_label_poly, '\tInterval: ', perturbed_label_box, '\tlabel: ', label,
+                    printsave('DeepG: ', perturbed_label_poly, '\tInterval: ', perturbed_label_box, '\tlabel: ', label,
                           '[Time: %.4f]' % (t_end - t_begin))
 
                     tot_chunks += 1
@@ -914,7 +934,7 @@ elif config.geometric:
             cver_box.append(ver_chunks_box / float(tot_chunks))
             tot_time += time.time() - begtime
 
-            print('Verified[box]: {}, Verified[poly]: {}, CEX found: {}'.format(ok_box, ok_poly, cex_found))
+            printsave('Verified[box]: {}, Verified[poly]: {}, CEX found: {}'.format(ok_box, ok_poly, cex_found))
             assert not cex_found or not ok_box, 'ERROR! Found counter-example, but image was verified with box!'
             assert not cex_found or not ok_poly, 'ERROR! Found counter-example, but image was verified with poly!'
 
@@ -928,7 +948,7 @@ elif config.geometric:
                 break
 
             attacks_file = os.path.join(config.data_dir, 'attack_{}.csv'.format(i))
-            print('Test {}:'.format(i))
+            printsave('Test {}:'.format(i))
 
             image = np.float64(test[1:])
             if config.dataset == 'mnist' or config.dataset == 'fashion':
@@ -944,16 +964,16 @@ elif config.geometric:
             
             label, nn, nlb, nub, _, _ = eran.analyze_box(spec_lb, spec_ub, 'deeppoly', config.timeout_lp, config.timeout_milp,
                                                    config.use_default_heuristic)
-            print('Label: ', label)
+            printsave('Label: ', label)
 
             begtime = time.time()
             if label != int(test[0]):
-                print('Label {}, but true label is {}, skipping...'.format(label, int(test[0])))
-                print('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
+                printsave('Label {}, but true label is {}, skipping...'.format(label, int(test[0])))
+                printsave('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
                 continue
             else:
                 standard_correct += 1
-                print('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
+                printsave('Standard accuracy: {} percent'.format(standard_correct / float(i + 1) * 100))
 
             dim = n_rows * n_cols * n_channels
 
@@ -982,16 +1002,16 @@ elif config.geometric:
                             attack_lb[:dim], attack_ub[:dim], 'deeppoly',
                             config.timeout_lp, config.timeout_milp, config.use_default_heuristic)
                         if predict_label != int(test[0]):
-                            print('counter-example, params: ', params, ', predicted label: ', predict_label)
+                            printsave('counter-example, params: ', params, ', predicted label: ', predict_label)
                             cex_found = True
                             break
                         else:
                             attack_pass += 1
-            print('tot attacks: ', len(attack_imgs))
+            printsave('tot attacks: ', len(attack_imgs))
             specs_file = os.path.join(config.data_dir, '{}.csv'.format(i))
             with open(specs_file, 'r') as fin:
                 lines = fin.readlines()
-                print('Number of lines: ', len(lines))
+                printsave('Number of lines: ', len(lines))
                 assert len(lines) % k == 0
 
                 spec_lb = np.zeros(config.num_params + dim)
@@ -1013,7 +1033,7 @@ elif config.geometric:
                         spec_lb[dim + param_idx] = values[0]
                         spec_ub[dim + param_idx] = values[1]
                         if config.debug:
-                            print('parameter %d: [%.4f, %.4f]' % (param_idx, values[0], values[1]))
+                            printsave('parameter %d: [%.4f, %.4f]' % (param_idx, values[0], values[1]))
                     elif i % k == config.num_params:
                         # read interval bounds for image pixels
                         values = np.array(list(map(float, line[:-1].split(','))))
@@ -1068,9 +1088,9 @@ elif config.geometric:
                                     ok_attack = False
                             if ok_attack:
                                 checked[attack_idx] = True
-                                # print('checked ', attack_idx)
+                                # printsave('checked ', attack_idx)
                         if config.debug:
-                            print('Running the analysis...')
+                            printsave('Running the analysis...')
 
                         t_begin = time.time()
                         perturbed_label_poly, _, _, _ , _, _ = eran.analyze_box(
@@ -1084,7 +1104,7 @@ elif config.geometric:
                             config.timeout_lp, config.timeout_milp, config.use_default_heuristic)
                         t_end = time.time()
 
-                        print('DeepG: ', perturbed_label_poly, '\tInterval: ', perturbed_label_box, '\tlabel: ', label,
+                        printsave('DeepG: ', perturbed_label_poly, '\tInterval: ', perturbed_label_box, '\tlabel: ', label,
                               '[Time: %.4f]' % (t_end - t_begin))
 
                         tot_chunks += 1
@@ -1114,17 +1134,17 @@ elif config.geometric:
             cver_box.append(ver_chunks_box / float(tot_chunks))
             tot_time += time.time() - begtime
 
-            print('Verified[box]: {}, Verified[poly]: {}, CEX found: {}'.format(ok_box, ok_poly, cex_found))
+            printsave('Verified[box]: {}, Verified[poly]: {}, CEX found: {}'.format(ok_box, ok_poly, cex_found))
             assert not cex_found or not ok_box, 'ERROR! Found counter-example, but image was verified with box!'
             assert not cex_found or not ok_poly, 'ERROR! Found counter-example, but image was verified with poly!'
 
-    print('Attacks found: %.2f percent, %d/%d' % (100.0 * attacked / total, attacked, total))
-    print('[Box]  Provably robust: %.2f percent, %d/%d' % (100.0 * correct_box / total, correct_box, total))
-    print('[Poly] Provably robust: %.2f percent, %d/%d' % (100.0 * correct_poly / total, correct_poly, total))
-    print('Empirically robust: %.2f percent, %d/%d' % (100.0 * (total - attacked) / total, total - attacked, total))
-    print('[Box]  Average chunks verified: %.2f percent' % (100.0 * np.mean(cver_box)))
-    print('[Poly]  Average chunks verified: %.2f percent' % (100.0 * np.mean(cver_poly)))
-    print('Average time: ', tot_time / total)
+    printsave('Attacks found: %.2f percent, %d/%d' % (100.0 * attacked / total, attacked, total))
+    printsave('[Box]  Provably robust: %.2f percent, %d/%d' % (100.0 * correct_box / total, correct_box, total))
+    printsave('[Poly] Provably robust: %.2f percent, %d/%d' % (100.0 * correct_poly / total, correct_poly, total))
+    printsave('Empirically robust: %.2f percent, %d/%d' % (100.0 * (total - attacked) / total, total - attacked, total))
+    printsave('[Box]  Average chunks verified: %.2f percent' % (100.0 * np.mean(cver_box)))
+    printsave('[Poly]  Average chunks verified: %.2f percent' % (100.0 * np.mean(cver_poly)))
+    printsave('Average time: ', tot_time / total)
 
 elif config.input_box is not None:
     boxes = parse_input_box(tests)
@@ -1137,14 +1157,14 @@ elif config.input_box is not None:
         normalize(specUB, means, stds, dataset)
         hold, nn, nlb, nub, _, _ = eran.analyze_box(specLB, specUB, domain, config.timeout_lp, config.timeout_milp, config.use_default_heuristic, constraints)
         if hold:
-            print('constraints hold for box ' + str(index) + ' out of ' + str(sum([1 for b in boxes])))
+            printsave('constraints hold for box ' + str(index) + ' out of ' + str(sum([1 for b in boxes])))
             correct += 1
         else:
-            print('constraints do NOT hold for box ' + str(index) + ' out of ' + str(sum([1 for b in boxes])))
+            printsave('constraints do NOT hold for box ' + str(index) + ' out of ' + str(sum([1 for b in boxes])))
 
         index += 1
 
-    print('constraints hold for ' + str(correct) + ' out of ' + str(sum([1 for b in boxes])) + ' boxes')
+    printsave('constraints hold for ' + str(correct) + ' out of ' + str(sum([1 for b in boxes])) + ' boxes')
 
 elif config.spatial:
 
@@ -1178,10 +1198,10 @@ elif config.spatial:
             use_default_heuristic=config.use_default_heuristic
         )
 
-        print(f'concrete {nlb[-1]}')
+        printsave(f'concrete {nlb[-1]}')
 
         if label != predicted_label:
-            print(f'img {idx} not considered, correct_label {label}, classified label {predicted_label}')
+            printsave(f'img {idx} not considered, correct_label {label}, classified label {predicted_label}')
             continue
 
         correctly_classified_images += 1
@@ -1310,17 +1330,17 @@ elif config.spatial:
         )
         end = time.time()
 
-        print(f'nlb {nlb[-1]} nub {nub[-1]} adv labels {failed_labels}')
+        printsave(f'nlb {nlb[-1]} nub {nub[-1]} adv labels {failed_labels}')
 
         if perturbed_label == label:
-            print(f'img {idx} verified {label}')
+            printsave(f'img {idx} verified {label}')
             verified_images += 1
-            print(end - start, "seconds")
+            printsave(end - start, "seconds")
             continue
 
         if (not complete) or (domain not in ['deeppoly', 'deepzono']):
-            print(f'img {idx} Failed')
-            print(end - start, "seconds")
+            printsave(f'img {idx} Failed')
+            printsave(end - start, "seconds")
             continue
 
         verified_flag, adv_image, _ = verify_network_with_milp(
@@ -1331,15 +1351,15 @@ elif config.spatial:
         )
 
         if verified_flag:
-            print(f'img {idx} Verified as Safe {label}')
+            printsave(f'img {idx} Verified as Safe {label}')
             verified_images += 1
         else:
-            print(f'img {idx} Failed')
+            printsave(f'img {idx} Failed')
 
         end = time.time()
-        print(end - start, "seconds")
+        printsave(end - start, "seconds")
 
-    print(f'analysis precision {verified_images} / {correctly_classified_images}')
+    printsave(f'analysis precision {verified_images} / {correctly_classified_images}')
 
 else:
     target = []
@@ -1377,25 +1397,25 @@ else:
         normalize(specLB, means, stds, dataset)
         normalize(specUB, means, stds, dataset)
 
-        #print("specLB ", len(specLB), "specUB ", specUB)
+        #printsave("specLB ", len(specLB), "specUB ", specUB)
         is_correctly_classified = False
         start = time.time()
         if domain == 'gpupoly' or domain == 'refinegpupoly':
             #specLB = np.reshape(specLB, (32,32,3))#np.ascontiguousarray(specLB, dtype=np.double)
             #specUB = np.reshape(specUB, (32,32,3))
-            #print("specLB ", specLB)
+            #printsave("specLB ", specLB)
             is_correctly_classified = network.test(specLB, specUB, int(test[0]), True)
         else:
             label,nn,nlb,nub,_,_ = eran.analyze_box(specLB, specUB, init_domain(domain), config.timeout_lp, config.timeout_milp, config.use_default_heuristic)
-            print("concrete ", nlb[-1])
+            printsave("concrete ", nlb[-1])
             if label == int(test[0]):
                 is_correctly_classified = True
         #for number in range(len(nub)):
         #    for element in range(len(nub[number])):
         #        if(nub[number][element]<=0):
-        #            print('False')
+        #            printsave('False')
         #        else:
-        #            print('True')
+        #            printsave('True')
         if config.epsfile!= None:
             epsilon = np.float64(eps_array[i])
         
@@ -1424,9 +1444,9 @@ else:
 
             if domain == 'gpupoly' or domain =='refinegpupoly':
                 is_verified = network.test(specLB, specUB, int(test[0]))
-                #print("res ", res)
+                #printsave("res ", res)
                 if is_verified:
-                    print("img", i, "Verified", int(test[0]))
+                    printsave("img", i, "Verified", int(test[0]))
                     verified_images+=1
                 elif domain == 'refinegpupoly':
                     num_outputs = len(nn.weights[-1])
@@ -1450,14 +1470,14 @@ else:
                     #     predecessor = np.zeros(1, dtype=np.int)
                     #     predecessor[0] = int(pred-1)
                     #     nn.predecessors.append(predecessor)
-                    #print("predecessors ", nn.predecessors[0][0])
+                    #printsave("predecessors ", nn.predecessors[0][0])
                     for labels in range(num_outputs):
-                        #print("num_outputs ", num_outputs, nn.numlayer, len(nn.weights[-1]))
+                        #printsave("num_outputs ", num_outputs, nn.numlayer, len(nn.weights[-1]))
                         if labels != int(test[0]):
                             if res[var][0] < 0:
                                 labels_to_be_verified.append(labels)
                             var = var+1
-                    #print("relu layers", relu_layers)
+                    #printsave("relu layers", relu_layers)
 
                     is_verified, nn, nlb, nub, _, x, _ = refine_gpupoly_results(nn, network, config, relu_layers, int(test[0]),
                                                             labels_to_be_verified, K=config.k, s=config.s,
@@ -1471,7 +1491,7 @@ else:
                                                             max_milp_neurons=config.max_milp_neurons,
                                                             approx=config.approx_k)
                     if is_verified:
-                        print("img", i, "Verified", int(test[0]))
+                        printsave("img", i, "Verified", int(test[0]))
                         verified_images += 1
                     else:
                         if x != None:
@@ -1480,17 +1500,17 @@ else:
                                 res = np.argmax((network.eval(adv_image))[:,0])
                                 if res != int(test[0]):
                                     denormalize(adex, means, stds, dataset)
-                                    # print("img", i, "Verified unsafe with adversarial image ", adv_image, "cex label", cex_label, "correct label ", int(test[0]))
-                                    print("img", i, "Verified unsafe against label ", res, "correct label ", int(test[0]))
+                                    # printsave("img", i, "Verified unsafe with adversarial image ", adv_image, "cex label", cex_label, "correct label ", int(test[0]))
+                                    printsave("img", i, "Verified unsafe against label ", res, "correct label ", int(test[0]))
                                     unsafe_images += 1
                                     break
 
                             else:
-                                print("img", i, "Failed")
+                                printsave("img", i, "Failed")
                         else:
-                            print("img", i, "Failed")
+                            printsave("img", i, "Failed")
                 else:
-                    print("img", i, "Failed")
+                    printsave("img", i, "Failed")
             else:
                 if domain.endswith("poly"):
                     perturbed_label, _, nlb, nub, failed_labels, x = eran.analyze_box(specLB, specUB, "deeppoly",
@@ -1506,7 +1526,7 @@ else:
                                                                                       partial_milp=0,
                                                                                       max_milp_neurons=0,
                                                                                       approx_k=0)
-                    print("nlb ", nlb[-1], " nub ", nub[-1],"adv labels ", failed_labels)
+                    printsave("nlb ", nlb[-1], " nub ", nub[-1],"adv labels ", failed_labels)
                 if not domain.endswith("poly") or not (perturbed_label==label):
                     perturbed_label, _, nlb, nub, failed_labels, x = eran.analyze_box(specLB, specUB, domain,
                                                                                       config.timeout_lp,
@@ -1522,9 +1542,9 @@ else:
                                                                                       partial_milp=config.partial_milp,
                                                                                       max_milp_neurons=config.max_milp_neurons,
                                                                                       approx_k=config.approx_k)
-                    print("nlb ", nlb[-1], " nub ", nub[-1], "adv labels ", failed_labels)
+                    printsave("nlb ", nlb[-1], " nub ", nub[-1], "adv labels ", failed_labels)
                 if (perturbed_label==label):
-                    print("img", i, "Verified", label)
+                    printsave("img", i, "Verified", label)
                     verified_images += 1
                 else:
                     if complete==True and failed_labels is not None:
@@ -1532,42 +1552,43 @@ else:
                         constraints = get_constraints_for_dominant_label(label, failed_labels)
                         verified_flag, adv_image, adv_val = verify_network_with_milp(nn, specLB, specUB, nlb, nub, constraints)
                         if(verified_flag==True):
-                            print("img", i, "Verified as Safe using MILP", label)
+                            printsave("img", i, "Verified as Safe using MILP", label)
                             verified_images += 1
                         else:
                             if adv_image != None:
                                 cex_label,_,_,_,_,_ = eran.analyze_box(adv_image[0], adv_image[0], 'deepzono', config.timeout_lp, config.timeout_milp, config.use_default_heuristic, approx_k=config.approx_k)
                                 if(cex_label!=label):
                                     denormalize(adv_image[0], means, stds, dataset)
-                                    # print("img", i, "Verified unsafe with adversarial image ", adv_image, "cex label", cex_label, "correct label ", label)
-                                    print("img", i, "Verified unsafe against label ", cex_label, "correct label ", label)
+                                    # printsave("img", i, "Verified unsafe with adversarial image ", adv_image, "cex label", cex_label, "correct label ", label)
+                                    printsave("img", i, "Verified unsafe against label ", cex_label, "correct label ", label)
                                     unsafe_images+=1
                                 else:
-                                    print("img", i, "Failed with MILP, without a adeversarial example")
+                                    printsave("img", i, "Failed with MILP, without a adeversarial example")
                             else:
-                                print("img", i, "Failed with MILP")
+                                printsave("img", i, "Failed with MILP")
                     else:
                     
                         if x != None:
                             cex_label,_,_,_,_,_ = eran.analyze_box(x,x,'deepzono',config.timeout_lp, config.timeout_milp, config.use_default_heuristic, approx_k=config.approx_k)
-                            print("cex label ", cex_label, "label ", label)
+                            printsave("cex label ", cex_label, "label ", label)
                             if(cex_label!=label):
                                 denormalize(x,means, stds, dataset)
-                                # print("img", i, "Verified unsafe with adversarial image ", x, "cex label ", cex_label, "correct label ", label)
-                                print("img", i, "Verified unsafe against label ", cex_label, "correct label ", label)
+                                # printsave("img", i, "Verified unsafe with adversarial image ", x, "cex label ", cex_label, "correct label ", label)
+                                printsave("img", i, "Verified unsafe against label ", cex_label, "correct label ", label)
                                 unsafe_images += 1
                             else:
-                                print("img", i, "Failed, without a adversarial example")
+                                printsave("img", i, "Failed, without a adversarial example")
                         else:
-                            print("img", i, "Failed")
+                            printsave("img", i, "Failed")
 
             end = time.time()
             cum_time += end - start # only count samples where we did try to certify
         else:
-            print("img",i,"not considered, incorrectly classified")
+            printsave("img",i,"not considered, incorrectly classified")
             end = time.time()
 
-        print(f"progress: {1 + i - config.from_test}/{config.num_tests}, "
+
+        printsave(f"progress: {1 + i - config.from_test}/{config.num_tests}, "
               f"correct:  {correctly_classified_images}/{1 + i - config.from_test}, "
               f"verified: {verified_images}/{correctly_classified_images}, "
               f"unsafe: {unsafe_images}/{correctly_classified_images}, ",
@@ -1575,4 +1596,4 @@ else:
 
 
 
-    print('analysis precision ',verified_images,'/ ', correctly_classified_images)
+    printsave('analysis precision ',verified_images,'/ ', correctly_classified_images)
